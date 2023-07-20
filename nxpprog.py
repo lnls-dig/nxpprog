@@ -464,27 +464,12 @@ class SerialDevice(object):
     # this is of course only possible if the signals are connected in
     # this way
     def isp_mode(self):
-        self.reset(0)
-        time.sleep(.1)
-        self.reset(1)
-        self.int0(1)
-        time.sleep(.1)
-        self.reset(0)
-        time.sleep(.1)
-        self.int0(0)
 
-    def reset(self, level):
-        if self.reset_pin == "rts":
-            self._serial.setRTS(level)
-        else:
-            self._serial.setDTR(level)
-
-    def int0(self, level):
-        # if reset pin is rts int0 pin is dtr
-        if self.reset_pin == "rts":
-            self._serial.setDTR(level)
-        else:
-            self._serial.setRTS(level)
+        # sequence to put the AFCv4 (https://ohwr.org/project/afc/tree/cti_afc4) into bootloader mode
+        self._serial.setRTS(1) # set RTS line to 0v
+        self._serial.setDTR(0) # set DTR line to 3.3v
+        time.sleep(0.1)
+        self._serial.setDTR(1) # set DTR line to 0v
 
     def write(self, data):
         self._serial.write(data)
