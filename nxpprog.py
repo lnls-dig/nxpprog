@@ -31,6 +31,7 @@ import argparse
 import serial # pyserial
 import socket
 import time
+import ipaddress
 
 import ihex
 
@@ -1210,26 +1211,11 @@ def main(argv=None):
         parser.print_help()
 
     if args.udp:
-        if '.' in args.device:
-            if ':' in args.device:
-                args.device, args.port = tuple(args.device.split(':'))
-                args.port = int(args.port)
-                if args.port<0 or args.port>65535:
-                    panic("Bad port number: %d" % args.port)
-            parts = [int(x) for x in args.device.split('.')]
-            if len(parts)!=4 or min(parts)<0 or max(parts)>255:
-                panic("Bad IPv4-address: %s" % args.device)
-            args.device = '.'.join([str(x) for x in parts])
-        elif ':' in device:
-            # panic("Bad IPv6-address: %s" % device)
-            pass
-        else:
-            panic("Bad IP-address: %s" % device)
+        ipaddress.ip_address(args.device)
         if args.mac:
             parts = [int(x, 16) for x in args.mac.split('-')]
             if len(parts)!=6 or min(parts)<0 or max(parts)>255:
                 panic("Bad MAC-address: %s" % mac)
-            args.mac = '-'.join(['%02x'%x for x in parts])
             log("cpu=%s ip=%s:%d mac=%s" % (args.cpu, args.device, args.port, args.mac))
         else:
             log("cpu=%s ip=%s:%d" % (args.cpu, args.device, args.port))
