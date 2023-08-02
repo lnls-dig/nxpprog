@@ -406,7 +406,6 @@ def syntax():
     panic(
 """\
 {0} <serial device> <image_file> : program image file to processor.
-{0} --udp <ip address> <image_file> : program processor using Ethernet.
 {0} --start=<addr> <serial device> : start the device at <addr>.
 {0} --read=<file> --addr=<address> --len=<length> <serial device>:
             read length bytes from address and dump them to a file.
@@ -426,8 +425,6 @@ options:
     --blankcheck : don't program, just check that the flash is blank.
     --filetype=[ihex|bin] : set filetype to intel hex format or raw binary.
     --bank=[0|1] : select bank for devices with flash banks.
-    --port=<udp port> : UDP port number to use (default 41825).
-    --mac=<mac address> : MAC address to associate IP address with.\
 """.format(os.path.basename(sys.argv[0])))
 
 class SerialDevice(object):
@@ -501,50 +498,8 @@ class SerialDevice(object):
 
         return line.decode("UTF-8", "ignore")
 
-class UdpDevice(object):
-    def __init__(self, address):
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._sock.settimeout(5)
-        self._inet_addr = address[0]
-        self._udp_port = address[1]
-        self._eth_addr = address[2]
-
-        if self._eth_addr:
-            import subprocess
-            # Try add host to ARP table
-            obj = subprocess.Popen(['arp', '-s', self._inet_addr, self._eth_addr],
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                   shell=True)
-            res = obj.communicate()
-            stdout_text = res[0].decode('ascii', 'ignore') if res[0] else ""
-            stderr_text = res[1].decode('ascii', 'ignore') if res[1] else ""
-            if obj.returncode or stderr_text:
-                panic("Failed to register IP address " +
-                      "(Administrative privileges may be required)\r\n" +
-                      stderr_text.replace('\r', '').replace('\n', ''))
-
-        self._sock.bind(('', self._udp_port))
-
-    def write(self, data):
-        self._sock.sendto(data, (self._inet_addr, self._udp_port))
-
-    def readline(self, timeout=None):
-        if timeout:
-            ot = self._sock.gettimeout()
-            self._sock.settimeout(timeout)
-
-        try:
-            line, addr = self._sock.recvfrom(1024)
-        except Exception as e:
-            line = b""
-
-        if timeout:
-            self._sock.settimeout(ot)
-
-        return line.decode("UTF-8", "ignore").replace('\r','').replace('\n','')
-
 class nxpprog:
-    def __init__(self, cpu, device, baud, osc_freq, xonxoff=False, control=False, address=None, verify=False):
+    def __init__(self, cpu, device, baud, osc_freq, xonxoff=False, control=False, verify=False):
         self.echo_on = True
         self.verify = verify
         self.OK = 'OK'
@@ -559,10 +514,7 @@ class nxpprog:
         # uuencoded block length
         self.uu_block_size = self.uu_line_size * 20
 
-        if address:
-            self.device = UdpDevice(address)
-        else:
-            self.device = SerialDevice(device, baud, xonxoff, control)
+        self.device = SerialDevice(device, baud, xonxoff, control)
 
         self.cpu = cpu
 
@@ -1179,9 +1131,6 @@ def main(argv=None):
     parser.add_argument('--read', nargs='?', default=None, dest='readfile', help='read length bytes from address and dump them to a file')
     parser.add_argument('--len', default=0, type=int, dest='readlen')
     parser.add_argument('--serialnumber', action='store_true', default=False, dest='get_serial_number', help='get the device serial number')
-    parser.add_argument('--udp', action='store_true', default=False, help='program processor using Ethernet')
-    parser.add_argument('--port', default=41825, type=int, help='UDP port number to use')
-    parser.add_argument('--mac', help='MAC address to associate IP address with')
 
     args = parser.parse_args()
 
@@ -1194,34 +1143,9 @@ def main(argv=None):
     if len(vars(args)) == 0:
         parser.print_help()
 
-    if args.udp:
-        if '.' in args.device:
-            if ':' in args.device:
-                args.device, args.port = tuple(args.device.split(':'))
-                args.port = int(args.port)
-                if args.port<0 or args.port>65535:
-                    panic("Bad port number: %d" % args.port)
-            parts = [int(x) for x in args.device.split('.')]
-            if len(parts)!=4 or min(parts)<0 or max(parts)>255:
-                panic("Bad IPv4-address: %s" % args.device)
-            args.device = '.'.join([str(x) for x in parts])
-        elif ':' in device:
-            # panic("Bad IPv6-address: %s" % device)
-            pass
-        else:
-            panic("Bad IP-address: %s" % device)
-        if args.mac:
-            parts = [int(x, 16) for x in args.mac.split('-')]
-            if len(parts)!=6 or min(parts)<0 or max(parts)>255:
-                panic("Bad MAC-address: %s" % mac)
-            args.mac = '-'.join(['%02x'%x for x in parts])
-            log("cpu=%s ip=%s:%d mac=%s" % (args.cpu, args.device, args.port, args.mac))
-        else:
-            log("cpu=%s ip=%s:%d" % (args.cpu, args.device, args.port))
-    else:
         log("cpu=%s oscfreq=%d device=%s baud=%d" % (args.cpu, args.oscfreq, args.device, args.baud))
 
-    prog = nxpprog(args.cpu, args.device, args.baud, args.oscfreq, args.xonxoff, args.control, (args.device, args.port, args.mac) if args.udp else None, args.verify)
+    prog = nxpprog(args.cpu, args.device, args.baud, args.oscfreq, args.xonxoff, args.control, args.verify)
 
     if args.eraseonly:
         prog.erase_all(verify)
