@@ -401,32 +401,6 @@ def panic(str):
     log(str)
     sys.exit(1)
 
-
-def syntax():
-    panic(
-"""\
-{0} <serial device> <image_file> : program image file to processor.
-{0} --start=<addr> <serial device> : start the device at <addr>.
-{0} --read=<file> --addr=<address> --len=<length> <serial device>:
-            read length bytes from address and dump them to a file.
-{0} --serialnumber <serial device> : get the device serial number
-{0} --list : list supported processors.
-options:
-    --cpu=<cpu> : set the cpu type.
-    --oscfreq=<freq> : set the oscillator frequency.
-    --baud=<baud> : set the baud rate.
-    --xonxoff : enable xonxoff flow control.
-    --control : use RTS and DTR to control reset and int0.
-    --addr=<image start address> : set the base address for the image.
-    --verify : read the device after programming.
-    --verifyonly : don't program, just verify.
-    --eraseonly : don't program, just erase. Implies --eraseall.
-    --eraseall : erase all flash not just the area written to.
-    --blankcheck : don't program, just check that the flash is blank.
-    --filetype=[ihex|bin] : set filetype to intel hex format or raw binary.
-    --bank=[0|1] : select bank for devices with flash banks.
-""".format(os.path.basename(sys.argv[0])))
-
 class SerialDevice(object):
     def __init__(self, device, baud, xonxoff=False, control=False):
         # Create the Serial object without port to avoid automatic opening
@@ -1111,13 +1085,13 @@ def main(argv=None):
                         prog='nxpprog',
                         description='Programmer for NXP arm processors using ISP protocol.')
 
-    parser.add_argument('device')
-    parser.add_argument('filename')
+    parser.add_argument('device', metavar='SERIAL_DEVICE')
+    parser.add_argument('filename', metavar='IMAGE_FILE')
     parser.add_argument('--list', action='store_true', default=False, help='list supported processors')
     parser.add_argument('--cpu', default='autodetect', choices=cpu_parms, help='set the cpu type')
     parser.add_argument('--xonxoff', action='store_true', default=False, help='enable xonxoff flow control')
-    parser.add_argument('--oscfreq', default=16000, type=int, help='set the oscillator frequency')
-    parser.add_argument('--addr', default=0, dest='flash_addr_base', type=lambda x: int(x,0), help='set the base address for the image')
+    parser.add_argument('--oscfreq', default=16000, type=int, metavar='FREQ', help='set the oscillator frequency')
+    parser.add_argument('--addr', default=0, dest='flash_addr_base', type=lambda x: int(x,0), metavar='IMAGE_START_ADDR', help='set the base address for the image')
     parser.add_argument('--baud', default=115200, type=int, help='set the baud rate')
     parser.add_argument('--eraseall', action='store_true', default=False, help='erase all flash not just the area written to')
     parser.add_argument('--eraseonly', action='store_true', default=False, help='don\'t program, just erase. Implies --eraseall')
@@ -1128,8 +1102,8 @@ def main(argv=None):
     parser.add_argument('--filetype', choices=['bin','ihex'], default='autodetect', help='set filetype to intel hex format or raw binary')
     parser.add_argument('--start', nargs='?', default=None, const=0, type=lambda x: int(x,0), dest='startaddr', help='start the device at <addr>')
     parser.add_argument('--bank', nargs='?', default=None, type=int, choices=[0,1], help='select bank for devices with flash banks')
-    parser.add_argument('--read', nargs='?', default=None, dest='readfile', help='read length bytes from address and dump them to a file')
-    parser.add_argument('--len', default=0, type=int, dest='readlen')
+    parser.add_argument('--read', nargs='?', default=None, dest='readfile', metavar='FILE', help='read length bytes from address and dump them to a file')
+    parser.add_argument('--len', default=0, type=int, dest='readlen', metavar='LENGHT')
     parser.add_argument('--serialnumber', action='store_true', default=False, dest='get_serial_number', help='get the device serial number')
 
     args = parser.parse_args()
@@ -1139,9 +1113,6 @@ def main(argv=None):
         for val in sorted(cpu_parms.keys()):
             log(" %s" % val)
         sys.exit(0)
-
-    if len(vars(args)) == 0:
-        parser.print_help()
 
         log("cpu=%s oscfreq=%d device=%s baud=%d" % (args.cpu, args.oscfreq, args.device, args.baud))
 
